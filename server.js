@@ -247,6 +247,7 @@ async function handleCreatePr(req, res) {
     });
 
     return sendJson(res, 200, {
+
       message: 'Pull request created',
       prUrl: pr.html_url,
       branch: finalBranch

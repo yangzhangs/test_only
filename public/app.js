@@ -238,6 +238,7 @@ async function loadRepoWorkflows() {
     if (!state.repoUrl) throw new Error('Repository URL is required');
 
     setStatus('Loading workflows...');
+
     const response = await fetch('/api/repo/workflows', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -246,6 +247,7 @@ async function loadRepoWorkflows() {
 
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || 'Failed to load workflows');
+
 
     state.owner = data.owner;
     state.repo = data.repo;
@@ -411,6 +413,7 @@ async function createPullRequest() {
     });
 
     const data = await response.json();
+
     if (!response.ok) throw new Error(data.error || 'PR creation failed');
 
     setStatus(`Pull request created: ${data.prUrl}`);
