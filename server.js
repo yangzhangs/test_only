@@ -162,7 +162,10 @@ async function handleSearchMarketplace(req, res) {
   try {
     const parsed = new URL(req.url, `http://${req.headers.host}`);
     const query = (parsed.searchParams.get('q') || '').trim();
-    const token = (parsed.searchParams.get('token') || '').trim();
+    const authHeader = (req.headers.authorization || '').trim();
+    const token = authHeader.toLowerCase().startsWith('bearer ')
+      ? authHeader.slice('bearer '.length).trim()
+      : '';
     const q = encodeURIComponent(`${query || 'ci'} topic:github-action`);
     const data = await githubRequest(`/search/repositories?q=${q}&sort=stars&order=desc&per_page=12`, token);
 

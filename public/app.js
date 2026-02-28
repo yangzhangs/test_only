@@ -302,9 +302,9 @@ async function searchMarketplaceActions() {
     const token = el.githubToken.value.trim();
     setStatus('Searching GitHub Marketplace actions...');
 
-    const response = await fetch(
-      `/api/marketplace/search-actions?q=${encodeURIComponent(query)}&token=${encodeURIComponent(token)}`
-    );
+    const response = await fetch(`/api/marketplace/search-actions?q=${encodeURIComponent(query)}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {}
+    });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || 'Search failed');
 
