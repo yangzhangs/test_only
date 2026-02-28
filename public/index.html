@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>GitHub Actions 可视化配置</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header>
+      <h1>GitHub Actions 可视化配置器</h1>
+      <p>输入仓库地址，检测并可视化编辑 Workflow，最后一键创建 PR。</p>
+    </header>
+
+    <section class="repo-form">
+      <input id="repoUrl" placeholder="https://github.com/owner/repo" />
+      <input id="githubToken" type="password" placeholder="GitHub Token（读取私有库/创建 PR 必填）" />
+      <button id="loadBtn">加载 Workflows</button>
+    </section>
+
+    <section class="workflow-select">
+      <label for="workflowList">Workflow:</label>
+      <select id="workflowList"></select>
+      <button id="syncYamlBtn">从画布生成 YAML</button>
+    </section>
+
+    <main class="layout">
+      <aside class="panel left">
+        <h2>Actions 组件</h2>
+        <div id="componentList" class="component-list"></div>
+      </aside>
+
+      <section class="panel canvas-wrap">
+        <h2>拖拽画布（步骤）</h2>
+        <div id="canvas" class="canvas" aria-label="workflow canvas"></div>
+      </section>
+
+      <aside class="panel right">
+        <h2>节点配置</h2>
+        <div id="nodeConfig">点击节点后可编辑配置</div>
+      </aside>
+    </main>
+
+    <section class="yaml-editor">
+      <h2>Workflow YAML</h2>
+      <textarea id="yamlOutput"></textarea>
+    </section>
+
+    <section class="pr-actions">
+      <input id="branchName" placeholder="分支名（可选）" />
+      <input id="commitMessage" placeholder="commit message（可选）" />
+      <input id="prTitle" placeholder="PR 标题（可选）" />
+      <textarea id="prBody" placeholder="PR 描述（可选）"></textarea>
+      <button id="createPrBtn">提交更新 PR</button>
+      <p id="status"></p>
+    </section>
+
+    <script src="app.js"></script>
+  </body>
+</html>

@@ -1,0 +1,104 @@
+:root {
+  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  color: #172b4d;
+}
+
+body {
+  margin: 0;
+  padding: 16px;
+  background: #f4f5f7;
+}
+
+header h1 {
+  margin-bottom: 4px;
+}
+
+.repo-form,
+.workflow-select,
+.pr-actions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+input,
+button,
+select,
+textarea {
+  border: 1px solid #c1c7d0;
+  border-radius: 6px;
+  padding: 8px;
+  font-size: 14px;
+}
+
+button {
+  background: #0052cc;
+  color: #fff;
+  cursor: pointer;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: 240px 1fr 320px;
+  gap: 12px;
+}
+
+.panel {
+  background: #fff;
+  border-radius: 10px;
+  padding: 12px;
+  min-height: 420px;
+}
+
+.component-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.component-item {
+  background: #deebff;
+  border: 1px solid #4c9aff;
+  border-radius: 6px;
+  padding: 8px;
+  cursor: grab;
+}
+
+.canvas {
+  border: 2px dashed #a5adba;
+  border-radius: 8px;
+  min-height: 360px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.canvas-node {
+  background: #e3fcef;
+  border: 1px solid #57d9a3;
+  border-radius: 6px;
+  padding: 8px;
+  cursor: pointer;
+}
+
+.canvas-node.active {
+  outline: 2px solid #36b37e;
+}
+
+#nodeConfig {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.yaml-editor textarea {
+  width: 100%;
+  min-height: 240px;
+}
+
+.pr-actions textarea {
+  min-height: 80px;
+  flex: 1;
+}

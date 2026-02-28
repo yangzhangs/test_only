@@ -1,0 +1,11 @@
+{
+  "name": "github-actions-visual-editor",
+  "version": "1.0.0",
+  "description": "Visual editor for GitHub Actions workflows with PR creation support",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "check": "node --check server.js && node --check public/app.js"
+  }
+}
