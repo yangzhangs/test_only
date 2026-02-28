@@ -1,59 +1,90 @@
 <!doctype html>
-<html lang="zh-CN">
+
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>GitHub Actions 可视化配置</title>
+    <title>FlowForge Actions Studio</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
-    <header>
-      <h1>GitHub Actions 可视化配置器</h1>
-      <p>输入仓库地址，检测并可视化编辑 Workflow，最后一键创建 PR。</p>
-    </header>
+    <div class="app-shell">
+      <header class="topbar">
+        <div>
+          <h1>FlowForge Actions Studio</h1>
+          <p>Visualize, edit, and ship GitHub Actions workflows with confidence.</p>
+        </div>
+      </header>
 
-    <section class="repo-form">
-      <input id="repoUrl" placeholder="https://github.com/owner/repo" />
-      <input id="githubToken" type="password" placeholder="GitHub Token（读取私有库/创建 PR 必填）" />
-      <button id="loadBtn">加载 Workflows</button>
-    </section>
-
-    <section class="workflow-select">
-      <label for="workflowList">Workflow:</label>
-      <select id="workflowList"></select>
-      <button id="syncYamlBtn">从画布生成 YAML</button>
-    </section>
-
-    <main class="layout">
-      <aside class="panel left">
-        <h2>Actions 组件</h2>
-        <div id="componentList" class="component-list"></div>
-      </aside>
-
-      <section class="panel canvas-wrap">
-        <h2>拖拽画布（步骤）</h2>
-        <div id="canvas" class="canvas" aria-label="workflow canvas"></div>
+      <section class="card controls">
+        <div class="row">
+          <input id="repoUrl" placeholder="Repository URL (https://github.com/owner/repo)" />
+          <input id="githubToken" type="password" placeholder="GitHub token (required for private repos and PR creation)" />
+          <button id="loadBtn">Load Workflows</button>
+          <button id="newWorkflowBtn" class="secondary">Start From Scratch</button>
+        </div>
+        <div class="row">
+          <label class="file-upload">Upload YAML <input id="yamlFile" type="file" accept=".yml,.yaml,.txt" /></label>
+          <textarea id="pasteYaml" placeholder="Paste existing workflow YAML here to parse it into the canvas"></textarea>
+          <button id="parseYamlBtn">Parse Pasted YAML</button>
+        </div>
       </section>
 
-      <aside class="panel right">
-        <h2>节点配置</h2>
-        <div id="nodeConfig">点击节点后可编辑配置</div>
-      </aside>
-    </main>
+      <section class="card workflow-bar">
+        <label for="workflowList">Workflow</label>
+        <select id="workflowList"></select>
+        <button id="syncYamlBtn">Generate YAML From Canvas</button>
+        <button id="viewYamlBtn" class="secondary">View Updated YAML</button>
+        <button id="downloadYamlBtn" class="secondary">Download YAML</button>
+      </section>
 
-    <section class="yaml-editor">
-      <h2>Workflow YAML</h2>
-      <textarea id="yamlOutput"></textarea>
-    </section>
+      <main class="workspace">
+        <aside class="card panel">
+          <h2>Action Library</h2>
+          <h3>Common Actions</h3>
+          <div id="componentList" class="component-list"></div>
 
-    <section class="pr-actions">
-      <input id="branchName" placeholder="分支名（可选）" />
-      <input id="commitMessage" placeholder="commit message（可选）" />
-      <input id="prTitle" placeholder="PR 标题（可选）" />
-      <textarea id="prBody" placeholder="PR 描述（可选）"></textarea>
-      <button id="createPrBtn">提交更新 PR</button>
-      <p id="status"></p>
-    </section>
+          <h3>GitHub Marketplace Search</h3>
+          <div class="search-row">
+            <input id="marketplaceQuery" placeholder="Search actions (e.g. aws, docker, lint)" />
+            <button id="searchMarketplaceBtn">Search</button>
+          </div>
+          <div id="marketplaceList" class="market-list"></div>
+        </aside>
+
+        <section class="card panel">
+          <h2>Pipeline Canvas</h2>
+          <p class="hint">Drag actions into the canvas, then click nodes to configure details.</p>
+          <div id="canvas" class="canvas" aria-label="workflow canvas"></div>
+        </section>
+
+        <aside class="card panel">
+          <h2>Node Settings</h2>
+          <div id="nodeConfig">Select a node to edit name, uses, and run command.</div>
+        </aside>
+      </main>
+
+      <section class="card yaml-editor">
+        <h2>Workflow YAML</h2>
+        <textarea id="yamlOutput"></textarea>
+      </section>
+
+      <section class="card pr-actions">
+        <h2>Create Pull Request</h2>
+        <div class="row">
+          <input id="workflowPath" placeholder="Workflow path (.github/workflows/ci.yml)" />
+          <input id="branchName" placeholder="Branch name (optional)" />
+          <input id="commitMessage" placeholder="Commit message (optional)" />
+          <input id="prTitle" placeholder="PR title (optional)" />
+        </div>
+        <textarea id="prBody" placeholder="PR description (optional)"></textarea>
+        <div class="row">
+          <button id="createPrBtn">Create Pull Request</button>
+          <span id="status"></span>
+        </div>
+      </section>
+    </div>
+
 
     <script src="app.js"></script>
   </body>

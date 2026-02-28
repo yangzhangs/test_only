@@ -5,48 +5,61 @@ const state = {
   repo: '',
   workflows: [],
   activeWorkflowIndex: -1,
+  yamlTemplate: null,
   canvasSteps: [],
   selectedStepIndex: -1
 };
 
-const defaultComponents = [
+const commonComponents = [
   { label: 'Checkout', uses: 'actions/checkout@v4' },
-  { label: 'Setup Node', uses: 'actions/setup-node@v4' },
+  { label: 'Setup Node.js', uses: 'actions/setup-node@v4' },
   { label: 'Install Dependencies', run: 'npm ci' },
   { label: 'Run Tests', run: 'npm test' },
-  { label: 'Build', run: 'npm run build' }
+  { label: 'Build', run: 'npm run build' },
+  { label: 'Upload Artifact', uses: 'actions/upload-artifact@v4' }
 ];
 
 const el = {
   repoUrl: document.getElementById('repoUrl'),
   githubToken: document.getElementById('githubToken'),
   loadBtn: document.getElementById('loadBtn'),
+  newWorkflowBtn: document.getElementById('newWorkflowBtn'),
+  yamlFile: document.getElementById('yamlFile'),
+  pasteYaml: document.getElementById('pasteYaml'),
+  parseYamlBtn: document.getElementById('parseYamlBtn'),
   workflowList: document.getElementById('workflowList'),
+  syncYamlBtn: document.getElementById('syncYamlBtn'),
+  viewYamlBtn: document.getElementById('viewYamlBtn'),
+  downloadYamlBtn: document.getElementById('downloadYamlBtn'),
   componentList: document.getElementById('componentList'),
   canvas: document.getElementById('canvas'),
   nodeConfig: document.getElementById('nodeConfig'),
   yamlOutput: document.getElementById('yamlOutput'),
-  syncYamlBtn: document.getElementById('syncYamlBtn'),
-  createPrBtn: document.getElementById('createPrBtn'),
+  workflowPath: document.getElementById('workflowPath'),
   branchName: document.getElementById('branchName'),
   commitMessage: document.getElementById('commitMessage'),
   prTitle: document.getElementById('prTitle'),
   prBody: document.getElementById('prBody'),
+  createPrBtn: document.getElementById('createPrBtn'),
+  marketplaceQuery: document.getElementById('marketplaceQuery'),
+  searchMarketplaceBtn: document.getElementById('searchMarketplaceBtn'),
+  marketplaceList: document.getElementById('marketplaceList'),
   status: document.getElementById('status')
 };
 
-function setStatus(msg, isError = false) {
-  el.status.textContent = msg;
-  el.status.style.color = isError ? '#de350b' : '#006644';
+function setStatus(message, isError = false) {
+  el.status.textContent = message;
+  el.status.style.color = isError ? '#b42318' : '#0f766e';
 }
 
-function parseStepsFromWorkflow(content) {
+function parseStepsFromYaml(content) {
   const lines = (content || '').split('\n');
   const steps = [];
   let current = null;
 
-  for (const rawLine of lines) {
-    const line = rawLine.trim();
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (!line) continue;
 
     if (line.startsWith('- name:')) {
       if (current) steps.push(current);
@@ -54,33 +67,96 @@ function parseStepsFromWorkflow(content) {
       continue;
     }
 
-    if (!current && (line.startsWith('- uses:') || line.startsWith('- run:'))) {
-      current = { name: 'New Step', uses: '', run: '' };
+    if (line.startsWith('- uses:')) {
+      if (current) steps.push(current);
+      current = { name: 'Action step', uses: line.replace('- uses:', '').trim(), run: '' };
+      continue;
+    }
+
+    if (line.startsWith('- run:')) {
+      if (current) steps.push(current);
+      current = { name: 'Run command', uses: '', run: line.replace('- run:', '').trim() };
+      continue;
     }
 
     if (current && line.startsWith('uses:')) current.uses = line.replace('uses:', '').trim();
-    if (current && line.startsWith('- uses:')) current.uses = line.replace('- uses:', '').trim();
     if (current && line.startsWith('run:')) current.run = line.replace('run:', '').trim();
-    if (current && line.startsWith('- run:')) current.run = line.replace('- run:', '').trim();
   }
 
   if (current) steps.push(current);
-
   return steps;
 }
 
-function renderComponents() {
-  el.componentList.innerHTML = '';
-  defaultComponents.forEach((component) => {
-    const item = document.createElement('div');
-    item.className = 'component-item';
-    item.draggable = true;
-    item.textContent = component.label;
-    item.addEventListener('dragstart', (event) => {
-      event.dataTransfer.setData('application/json', JSON.stringify(component));
-    });
-    el.componentList.appendChild(item);
+function extractStepsTemplate(yamlContent) {
+  const lines = (yamlContent || '').split('\n');
+  const stepsIndex = lines.findIndex((line) => /^\s*steps:\s*$/.test(line));
+  if (stepsIndex < 0) return null;
+
+  const stepsIndent = (lines[stepsIndex].match(/^\s*/) || [''])[0].length;
+  const blockStart = stepsIndex + 1;
+  let blockEnd = lines.length;
+
+  for (let i = blockStart; i < lines.length; i += 1) {
+    const line = lines[i];
+    if (!line.trim()) continue;
+    const indent = (line.match(/^\s*/) || [''])[0].length;
+    if (indent <= stepsIndent) {
+      blockEnd = i;
+      break;
+    }
+  }
+
+  return {
+    prefix: lines.slice(0, blockStart).join('\n'),
+    suffix: lines.slice(blockEnd).join('\n'),
+    itemIndent: ' '.repeat(stepsIndent + 2),
+    fieldIndent: ' '.repeat(stepsIndent + 4),
+    blockContent: lines.slice(blockStart, blockEnd).join('\n')
+  };
+}
+
+function rebuildYamlFromCanvas() {
+  const template = state.yamlTemplate;
+  const itemIndent = template?.itemIndent || '      ';
+  const fieldIndent = template?.fieldIndent || '        ';
+  const stepsBlock = state.canvasSteps
+    .map((step) => {
+      const lines = [`${itemIndent}- name: ${step.name || 'Unnamed step'}`];
+      if (step.uses) lines.push(`${fieldIndent}uses: ${step.uses}`);
+      if (step.run) lines.push(`${fieldIndent}run: ${step.run}`);
+      return lines.join('\n');
+    })
+    .join('\n');
+
+  if (template) {
+    const parts = [template.prefix, stepsBlock || `${itemIndent}- name: Placeholder\n${fieldIndent}run: echo "Generated by FlowForge"`];
+    if (template.suffix) parts.push(template.suffix);
+    return `${parts.join('\n')}\n`;
+  }
+
+  const currentName = state.workflows[state.activeWorkflowIndex]?.name || 'workflow.yml';
+  const workflowName = currentName.replace(/\.ya?ml$/i, '');
+
+  return `name: ${workflowName}\non:\n  push:\n    branches: [main]\n  pull_request:\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n${stepsBlock || '      - name: Hello\n        run: echo "Hello from FlowForge"'}\n`;
+}
+
+function addDraggableItem(container, item, description = '') {
+  const node = document.createElement('div');
+  node.className = 'component-item';
+  node.draggable = true;
+  node.innerHTML = `<strong>${item.label || item.name}</strong>${description ? `<div class="meta">${description}</div>` : ''}`;
+  node.addEventListener('dragstart', (event) => {
+    event.dataTransfer.setData(
+      'application/json',
+      JSON.stringify({ name: item.label || item.name, uses: item.uses || '', run: item.run || '' })
+    );
   });
+  container.appendChild(node);
+}
+
+function renderCommonActions() {
+  el.componentList.innerHTML = '';
+  commonComponents.forEach((component) => addDraggableItem(el.componentList, component));
 }
 
 function renderCanvas() {
@@ -88,7 +164,7 @@ function renderCanvas() {
   state.canvasSteps.forEach((step, index) => {
     const node = document.createElement('div');
     node.className = `canvas-node ${state.selectedStepIndex === index ? 'active' : ''}`;
-    node.innerHTML = `<strong>${index + 1}. ${step.name}</strong><div>${step.uses || step.run || ''}</div>`;
+    node.innerHTML = `<strong>${index + 1}. ${step.name}</strong><div>${step.uses || step.run || '(empty step)'}</div>`;
     node.addEventListener('click', () => {
       state.selectedStepIndex = index;
       renderCanvas();
@@ -100,7 +176,7 @@ function renderCanvas() {
 
 function renderNodeConfig() {
   if (state.selectedStepIndex < 0) {
-    el.nodeConfig.innerHTML = '点击节点后可编辑配置';
+    el.nodeConfig.innerHTML = 'Select a node to edit name, uses, and run command.';
     return;
   }
 
@@ -109,52 +185,60 @@ function renderNodeConfig() {
 
   const nameInput = document.createElement('input');
   nameInput.value = step.name;
-  nameInput.placeholder = 'step name';
+  nameInput.placeholder = 'Step name';
 
   const usesInput = document.createElement('input');
   usesInput.value = step.uses;
-  usesInput.placeholder = 'uses (如 actions/checkout@v4)';
+  usesInput.placeholder = 'uses (example: actions/checkout@v4)';
 
   const runInput = document.createElement('textarea');
   runInput.value = step.run;
-  runInput.placeholder = 'run command';
+  runInput.placeholder = 'run (example: npm test)';
 
-  [nameInput, usesInput, runInput].forEach((node) => el.nodeConfig.appendChild(node));
-
-  const saveBtn = document.createElement('button');
-  saveBtn.textContent = '保存节点配置';
-  saveBtn.addEventListener('click', () => {
-    step.name = nameInput.value.trim() || 'New Step';
+  const saveButton = document.createElement('button');
+  saveButton.textContent = 'Save Node';
+  saveButton.addEventListener('click', () => {
+    step.name = nameInput.value.trim() || 'Unnamed step';
     step.uses = usesInput.value.trim();
     step.run = runInput.value.trim();
     renderCanvas();
-    setStatus('节点配置已更新');
+    setStatus('Node updated');
   });
 
-  el.nodeConfig.appendChild(saveBtn);
+  const deleteButton = document.createElement('button');
+  deleteButton.textContent = 'Delete Node';
+  deleteButton.className = 'secondary';
+  deleteButton.addEventListener('click', () => {
+    state.canvasSteps.splice(state.selectedStepIndex, 1);
+    state.selectedStepIndex = -1;
+    renderCanvas();
+    renderNodeConfig();
+    setStatus('Node deleted');
+  });
+
+  [nameInput, usesInput, runInput, saveButton, deleteButton].forEach((item) => el.nodeConfig.appendChild(item));
 }
 
-function buildWorkflowYaml() {
-  const workflow = state.workflows[state.activeWorkflowIndex];
-  const defaultName = workflow?.name?.replace(/\.ya?ml$/i, '') || 'Generated Workflow';
-  const stepYaml = state.canvasSteps
-    .map((step) => {
-      const lines = [`      - name: ${step.name || 'New Step'}`];
-      if (step.uses) lines.push(`        uses: ${step.uses}`);
-      if (step.run) lines.push(`        run: ${step.run}`);
-      return lines.join('\n');
-    })
-    .join('\n');
-
-  return `name: ${defaultName}\non:\n  push:\n    branches: [main]\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n${stepYaml || '      - name: Placeholder\n        run: echo "No steps yet"'}\n`;
+function loadWorkflowIntoCanvas(workflow, index) {
+  state.activeWorkflowIndex = index;
+  state.yamlTemplate = extractStepsTemplate(workflow.content);
+  state.canvasSteps = parseStepsFromYaml(state.yamlTemplate?.blockContent || workflow.content);
+  state.selectedStepIndex = -1;
+  el.workflowPath.value = workflow.path;
+  el.yamlOutput.value = workflow.content;
+  renderCanvas();
+  renderNodeConfig();
 }
 
-el.loadBtn.addEventListener('click', async () => {
+async function loadRepoWorkflows() {
   try {
     state.repoUrl = el.repoUrl.value.trim();
     state.token = el.githubToken.value.trim();
 
-    setStatus('正在加载 workflows...');
+    if (!state.repoUrl) throw new Error('Repository URL is required');
+
+    setStatus('Loading workflows...');
+
     const response = await fetch('/api/repo/workflows', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -162,7 +246,8 @@ el.loadBtn.addEventListener('click', async () => {
     });
 
     const data = await response.json();
-    if (!response.ok) throw new Error(data.error || '加载失败');
+    if (!response.ok) throw new Error(data.error || 'Failed to load workflows');
+
 
     state.owner = data.owner;
     state.repo = data.repo;
@@ -175,87 +260,150 @@ el.loadBtn.addEventListener('click', async () => {
       renderCanvas();
       renderNodeConfig();
       el.yamlOutput.value = '';
-      setStatus('该仓库未检测到 GitHub Actions Workflow');
+      el.workflowPath.value = '.github/workflows/ci.yml';
+      setStatus('No workflows found. You can start from scratch.', false);
       return;
     }
 
-    state.workflows.forEach((wf, idx) => {
+    state.workflows.forEach((workflow, idx) => {
       const option = document.createElement('option');
       option.value = idx;
-      option.textContent = wf.path;
+      option.textContent = workflow.path;
       el.workflowList.appendChild(option);
     });
 
-    state.activeWorkflowIndex = 0;
-    state.canvasSteps = parseStepsFromWorkflow(state.workflows[0].content);
-    state.selectedStepIndex = -1;
-    renderCanvas();
-    renderNodeConfig();
-    el.yamlOutput.value = state.workflows[0].content;
-    setStatus(`已加载 ${state.workflows.length} 个 workflow`);
+    loadWorkflowIntoCanvas(state.workflows[0], 0);
+    setStatus(`Loaded ${state.workflows.length} workflow file(s)`);
   } catch (error) {
     setStatus(error.message, true);
   }
-});
+}
 
-el.workflowList.addEventListener('change', () => {
-  state.activeWorkflowIndex = Number(el.workflowList.value);
-  const wf = state.workflows[state.activeWorkflowIndex];
-  state.canvasSteps = parseStepsFromWorkflow(wf.content);
+function startFromScratch() {
+  state.workflows = [{ name: 'ci.yml', path: '.github/workflows/ci.yml', content: '' }];
+  el.workflowList.innerHTML = '<option value="0">.github/workflows/ci.yml</option>';
+  loadWorkflowIntoCanvas(state.workflows[0], 0);
+  state.yamlTemplate = null;
+  state.canvasSteps = [];
+  el.yamlOutput.value = rebuildYamlFromCanvas();
+  setStatus('Started a new workflow from scratch');
+}
+
+function parseYamlIntoCanvas(yamlContent, source = 'YAML input') {
+  state.yamlTemplate = extractStepsTemplate(yamlContent);
+  const steps = parseStepsFromYaml(state.yamlTemplate?.blockContent || yamlContent);
+  if (!steps.length) {
+    setStatus(`No steps found in ${source}`, true);
+    return;
+  }
+
+  if (state.activeWorkflowIndex < 0) {
+    state.workflows = [{ name: 'imported.yml', path: '.github/workflows/imported.yml', content: yamlContent }];
+    el.workflowList.innerHTML = '<option value="0">.github/workflows/imported.yml</option>';
+    state.activeWorkflowIndex = 0;
+  }
+
+  state.canvasSteps = steps;
   state.selectedStepIndex = -1;
+  el.yamlOutput.value = yamlContent;
+  if (!el.workflowPath.value) el.workflowPath.value = '.github/workflows/imported.yml';
   renderCanvas();
   renderNodeConfig();
-  el.yamlOutput.value = wf.content;
-  setStatus(`切换到 ${wf.path}`);
-});
+  setStatus(`Parsed ${steps.length} step(s) from ${source}`);
+}
 
-el.canvas.addEventListener('dragover', (event) => event.preventDefault());
-el.canvas.addEventListener('drop', (event) => {
-  event.preventDefault();
-  const raw = event.dataTransfer.getData('application/json');
-  if (!raw) return;
-  const component = JSON.parse(raw);
-  state.canvasSteps.push({
-    name: component.label,
-    uses: component.uses || '',
-    run: component.run || ''
-  });
-  renderCanvas();
-  setStatus(`已添加步骤: ${component.label}`);
-});
+function downloadYaml() {
+  const yaml = el.yamlOutput.value.trim() || rebuildYamlFromCanvas();
+  const blob = new Blob([yaml], { type: 'text/yaml;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const fileName = (el.workflowPath.value || '.github/workflows/ci.yml').split('/').pop();
+  a.href = url;
+  a.download = fileName;
+  a.click();
+  URL.revokeObjectURL(url);
+  setStatus('YAML downloaded');
+}
 
-el.syncYamlBtn.addEventListener('click', () => {
-  if (state.activeWorkflowIndex < 0) {
-    setStatus('请先加载 workflow', true);
-    return;
-  }
-  const yaml = buildWorkflowYaml();
-  el.yamlOutput.value = yaml;
-  setStatus('已根据画布生成 YAML');
-});
-
-el.createPrBtn.addEventListener('click', async () => {
-  if (state.activeWorkflowIndex < 0) {
-    setStatus('请先加载 workflow', true);
-    return;
-  }
-  if (!state.token) {
-    setStatus('创建 PR 需要 GitHub Token', true);
+function viewYaml() {
+  const yaml = el.yamlOutput.value.trim() || rebuildYamlFromCanvas();
+  const win = window.open('', '_blank');
+  if (!win) {
+    setStatus('Popup blocked. Please allow popups to view YAML.', true);
     return;
   }
 
+  win.document.write(`<pre style="white-space:pre-wrap;font-family:ui-monospace,Consolas,monospace;padding:24px;">${yaml
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')}</pre>`);
+  win.document.close();
+}
+
+async function searchMarketplaceActions() {
   try {
-    const workflow = state.workflows[state.activeWorkflowIndex];
-    const workflowContent = el.yamlOutput.value.trim() || buildWorkflowYaml();
+    const query = el.marketplaceQuery.value.trim();
+    const token = el.githubToken.value.trim();
+    setStatus('Searching GitHub Marketplace actions...');
 
-    setStatus('正在创建 PR...');
+    const response = await fetch(`/api/marketplace/search-actions?q=${encodeURIComponent(query)}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {}
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Search failed');
+
+    el.marketplaceList.innerHTML = '';
+    data.actions.forEach((action) => {
+      const card = document.createElement('div');
+      card.className = 'market-item';
+      card.innerHTML = `
+        <div class="name">${action.name}</div>
+        <div class="meta">${action.description}</div>
+        <div class="meta">⭐ ${action.stars}</div>
+        <a href="${action.url}" target="_blank" rel="noreferrer">Open repository</a>
+      `;
+
+      const addBtn = document.createElement('button');
+      addBtn.textContent = 'Add to Canvas';
+      addBtn.addEventListener('click', () => {
+        state.canvasSteps.push({ name: action.name, uses: action.uses, run: '' });
+        renderCanvas();
+        setStatus(`Added ${action.name} to canvas`);
+      });
+
+      card.appendChild(addBtn);
+      addDraggableItem(card, action, `uses: ${action.uses}`);
+      el.marketplaceList.appendChild(card);
+    });
+
+    if (!data.actions.length) setStatus('No matching actions found');
+    else setStatus(`Found ${data.actions.length} action(s)`);
+  } catch (error) {
+    setStatus(error.message, true);
+  }
+}
+
+async function createPullRequest() {
+  try {
+    if (state.activeWorkflowIndex < 0) throw new Error('Load or create a workflow first');
+
+    state.repoUrl = el.repoUrl.value.trim();
+    state.token = el.githubToken.value.trim();
+    if (!state.repoUrl || !state.token) {
+      throw new Error('Repository URL and GitHub token are required to create a PR');
+    }
+
+    const workflowContent = el.yamlOutput.value.trim() || rebuildYamlFromCanvas();
+    const workflowPath = el.workflowPath.value.trim() || '.github/workflows/ci.yml';
+
+    setStatus('Creating pull request...');
     const response = await fetch('/api/repo/create-pr', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         repoUrl: state.repoUrl,
         token: state.token,
-        workflowPath: workflow.path,
+        workflowPath,
         workflowContent,
         branchName: el.branchName.value.trim() || undefined,
         commitMessage: el.commitMessage.value.trim() || undefined,
@@ -265,14 +413,60 @@ el.createPrBtn.addEventListener('click', async () => {
     });
 
     const data = await response.json();
-    if (!response.ok) throw new Error(data.error || '创建 PR 失败');
 
-    setStatus(`PR 创建成功: ${data.prUrl}`);
+    if (!response.ok) throw new Error(data.error || 'PR creation failed');
+
+    setStatus(`Pull request created: ${data.prUrl}`);
   } catch (error) {
     setStatus(error.message, true);
   }
+}
+
+el.loadBtn.addEventListener('click', loadRepoWorkflows);
+el.newWorkflowBtn.addEventListener('click', startFromScratch);
+el.parseYamlBtn.addEventListener('click', () => parseYamlIntoCanvas(el.pasteYaml.value.trim(), 'pasted YAML'));
+el.syncYamlBtn.addEventListener('click', () => {
+  if (state.activeWorkflowIndex < 0) {
+    setStatus('Load, parse, or create a workflow first', true);
+    return;
+  }
+  el.yamlOutput.value = rebuildYamlFromCanvas();
+  setStatus('YAML generated from canvas');
 });
 
-renderComponents();
+el.viewYamlBtn.addEventListener('click', viewYaml);
+el.downloadYamlBtn.addEventListener('click', downloadYaml);
+el.searchMarketplaceBtn.addEventListener('click', searchMarketplaceActions);
+el.createPrBtn.addEventListener('click', createPullRequest);
+
+el.workflowList.addEventListener('change', () => {
+  const idx = Number(el.workflowList.value);
+  const workflow = state.workflows[idx];
+  if (!workflow) return;
+  loadWorkflowIntoCanvas(workflow, idx);
+  setStatus(`Switched to ${workflow.path}`);
+});
+
+el.yamlFile.addEventListener('change', async (event) => {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  const content = await file.text();
+  el.pasteYaml.value = content;
+  parseYamlIntoCanvas(content, `uploaded file ${file.name}`);
+});
+
+el.canvas.addEventListener('dragover', (event) => event.preventDefault());
+el.canvas.addEventListener('drop', (event) => {
+  event.preventDefault();
+  const raw = event.dataTransfer.getData('application/json');
+  if (!raw) return;
+  const component = JSON.parse(raw);
+  state.canvasSteps.push({ name: component.name || 'Unnamed step', uses: component.uses || '', run: component.run || '' });
+  renderCanvas();
+  setStatus(`Added ${component.name || 'step'} to canvas`);
+});
+
+renderCommonActions();
 renderCanvas();
 renderNodeConfig();
+el.workflowPath.value = '.github/workflows/ci.yml';

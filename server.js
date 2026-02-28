@@ -12,14 +12,19 @@ function parseRepoUrl(repoUrl) {
     .match(/github\.com[/:]([\w.-]+)\/([\w.-]+?)(?:\.git|\/)?$/i);
 
   if (!match) {
-    throw new Error('仓库地址格式不正确，请输入类似 https://github.com/owner/repo 的地址');
+    throw new Error('Invalid repository URL. Use https://github.com/owner/repo');
   }
 
   return { owner: match[1], repo: match[2] };
 }
 
 function sendJson(res, statusCode, payload) {
-  res.writeHead(statusCode, { 'Content-Type': 'application/json; charset=utf-8' });
+  res.writeHead(statusCode, {
+    'Content-Type': 'application/json; charset=utf-8',
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Access-Control-Allow-Methods': 'GET,POST,OPTIONS'
+  });
   res.end(JSON.stringify(payload));
 }
 
@@ -29,7 +34,7 @@ async function readBody(req) {
     req.on('data', (chunk) => {
       body += chunk;
       if (body.length > 2 * 1024 * 1024) {
-        reject(new Error('请求体过大'));
+        reject(new Error('Request body too large'));
         req.destroy();
       }
     });
@@ -38,7 +43,7 @@ async function readBody(req) {
       try {
         resolve(JSON.parse(body));
       } catch (_error) {
-        reject(new Error('JSON 格式无效'));
+        reject(new Error('Invalid JSON body'));
       }
     });
     req.on('error', reject);
@@ -49,7 +54,7 @@ async function githubRequest(pathname, token, method = 'GET', body) {
   const response = await fetch(`https://api.github.com${pathname}`, {
     method,
     headers: {
-      'User-Agent': 'actions-visual-editor',
+      'User-Agent': 'flowforge-actions-studio',
       Accept: 'application/vnd.github+json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(body ? { 'Content-Type': 'application/json' } : {})
@@ -59,7 +64,7 @@ async function githubRequest(pathname, token, method = 'GET', body) {
 
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
-    const message = data.message || `GitHub API 错误: ${response.status}`;
+    const message = data.message || `GitHub API error: ${response.status}`;
     const error = new Error(message);
     error.status = response.status;
     throw error;
@@ -102,7 +107,9 @@ function serveStatic(req, res) {
         ? 'text/css; charset=utf-8'
         : ext === '.js'
           ? 'application/javascript; charset=utf-8'
-          : 'text/html; charset=utf-8';
+          : ext === '.json'
+            ? 'application/json; charset=utf-8'
+            : 'text/html; charset=utf-8';
 
     res.writeHead(200, { 'Content-Type': contentType });
     res.end(data);
@@ -112,7 +119,7 @@ function serveStatic(req, res) {
 async function handleLoadWorkflows(req, res) {
   try {
     const { repoUrl, token } = await readBody(req);
-    if (!repoUrl) return sendJson(res, 400, { error: 'repoUrl 不能为空' });
+    if (!repoUrl) return sendJson(res, 400, { error: 'repoUrl is required' });
 
     const { owner, repo } = parseRepoUrl(repoUrl);
     let workflowList;
@@ -147,7 +154,32 @@ async function handleLoadWorkflows(req, res) {
       workflows
     });
   } catch (error) {
-    return sendJson(res, error.status || 500, { error: error.message || '加载 workflow 失败' });
+    return sendJson(res, error.status || 500, { error: error.message || 'Failed to load workflows' });
+  }
+}
+
+async function handleSearchMarketplace(req, res) {
+  try {
+    const parsed = new URL(req.url, `http://${req.headers.host}`);
+    const query = (parsed.searchParams.get('q') || '').trim();
+    const authHeader = (req.headers.authorization || '').trim();
+    const token = authHeader.toLowerCase().startsWith('bearer ')
+      ? authHeader.slice('bearer '.length).trim()
+      : '';
+    const q = encodeURIComponent(`${query || 'ci'} topic:github-action`);
+    const data = await githubRequest(`/search/repositories?q=${q}&sort=stars&order=desc&per_page=12`, token);
+
+    const actions = (data.items || []).map((item) => ({
+      name: item.full_name,
+      uses: `${item.full_name}@v1`,
+      description: item.description || 'No description',
+      stars: item.stargazers_count,
+      url: item.html_url
+    }));
+
+    return sendJson(res, 200, { actions });
+  } catch (error) {
+    return sendJson(res, error.status || 500, { error: error.message || 'Failed to search actions' });
   }
 }
 
@@ -159,13 +191,13 @@ async function handleCreatePr(req, res) {
       workflowPath,
       workflowContent,
       branchName,
-      commitMessage = 'chore: update GitHub Actions workflow via visual editor',
+      commitMessage = 'chore: update GitHub Actions workflow via FlowForge Actions Studio',
       prTitle = 'Update GitHub Actions workflow',
-      prBody = 'This PR updates workflow configuration using the visual editor.'
+      prBody = 'This PR updates workflow configuration using FlowForge Actions Studio.'
     } = await readBody(req);
 
     if (!repoUrl || !token || !workflowPath || !workflowContent) {
-      return sendJson(res, 400, { error: 'repoUrl、token、workflowPath、workflowContent 为必填项' });
+      return sendJson(res, 400, { error: 'repoUrl, token, workflowPath and workflowContent are required' });
     }
 
     const { owner, repo } = parseRepoUrl(repoUrl);
@@ -173,7 +205,7 @@ async function handleCreatePr(req, res) {
     const baseBranch = repoInfo.default_branch;
     const baseRef = await githubRequest(`/repos/${owner}/${repo}/git/ref/heads/${baseBranch}`, token);
 
-    let finalBranch = (branchName || `actions-visual-update-${Date.now()}`).replace(/[^a-zA-Z0-9/_-]/g, '-');
+    let finalBranch = (branchName || `flowforge-actions-update-${Date.now()}`).replace(/[^a-zA-Z0-9/_-]/g, '-');
 
     try {
       await githubRequest(`/repos/${owner}/${repo}/git/refs`, token, 'POST', {
@@ -215,20 +247,29 @@ async function handleCreatePr(req, res) {
     });
 
     return sendJson(res, 200, {
-      message: 'PR 创建成功',
+
+      message: 'Pull request created',
       prUrl: pr.html_url,
       branch: finalBranch
     });
   } catch (error) {
-    return sendJson(res, error.status || 500, { error: error.message || '创建 PR 失败' });
+    return sendJson(res, error.status || 500, { error: error.message || 'Failed to create PR' });
   }
 }
 
 const server = http.createServer(async (req, res) => {
+  if (req.method === 'OPTIONS') {
+    return sendJson(res, 204, {});
+  }
+
   const parsed = new URL(req.url, `http://${req.headers.host}`);
 
   if (req.method === 'POST' && parsed.pathname === '/api/repo/workflows') {
     return handleLoadWorkflows(req, res);
+  }
+
+  if (req.method === 'GET' && parsed.pathname === '/api/marketplace/search-actions') {
+    return handleSearchMarketplace(req, res);
   }
 
   if (req.method === 'POST' && parsed.pathname === '/api/repo/create-pr') {
@@ -239,5 +280,5 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
+  console.log(`FlowForge Actions Studio running on http://localhost:${PORT}`);
 });

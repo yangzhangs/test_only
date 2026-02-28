@@ -1,18 +1,27 @@
-# GitHub Actions 可视化配置网站
+# FlowForge Actions Studio
 
-一个轻量级网页工具，支持：
+FlowForge Actions Studio is a web app for visual GitHub Actions authoring and updates.
 
-- 输入 GitHub 仓库地址自动检测 `.github/workflows`。
-- 将 workflow 步骤加载到可视化画布（左侧组件、中央画布、右侧配置）。
-- 从画布生成 YAML。
-- 使用 GitHub Token 将配置更新提交到目标仓库并自动创建 Pull Request。
+## What it supports
 
-## 启动
+- Load any GitHub repository and detect existing `.github/workflows/*.yml|*.yaml` files.
+- Visualize workflow steps on a canvas and edit each node in a side panel.
+- Start from scratch and generate a new workflow without existing files.
+- Paste or upload YAML and automatically parse it into the canvas pipeline.
+- Browse common actions and search GitHub Marketplace actions, then add them to the pipeline.
+- Generate updated YAML, view it online, or download it locally.
+- Create a branch, commit workflow changes, and open a Pull Request in the target repository.
+
+## Run locally
+
 
 ```bash
 node server.js
 ```
 
-默认地址：`http://localhost:3000`
+Open: `http://localhost:3000`
 
-> 创建 PR 需要用户提供具有对应仓库写权限的 Token。
+## Notes
+
+- A GitHub token is required for private repositories and for Pull Request creation.
+- Marketplace search uses GitHub repository search filtered by `topic:github-action`.

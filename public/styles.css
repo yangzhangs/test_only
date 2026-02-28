@@ -1,74 +1,114 @@
 :root {
-  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-  color: #172b4d;
+  color-scheme: light;
+  font-family: Inter, Segoe UI, Roboto, -apple-system, BlinkMacSystemFont, sans-serif;
+  --bg: #f5f7fb;
+  --card: #ffffff;
+  --text: #1f2937;
+  --muted: #6b7280;
+  --primary: #2563eb;
+  --border: #d9e1f2;
+  --ok: #0f766e;
+  --error: #b42318;
 }
 
-body {
-  margin: 0;
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); }
+
+.app-shell {
+  max-width: 1500px;
+  margin: 0 auto;
   padding: 16px;
-  background: #f4f5f7;
+  display: grid;
+  gap: 14px;
 }
 
-header h1 {
-  margin-bottom: 4px;
+.topbar h1 { margin: 0; }
+.topbar p { margin: 4px 0 0; color: var(--muted); }
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 14px;
 }
 
-.repo-form,
-.workflow-select,
-.pr-actions {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 12px;
-  flex-wrap: wrap;
-}
+.row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
 
-input,
-button,
-select,
-textarea {
-  border: 1px solid #c1c7d0;
-  border-radius: 6px;
-  padding: 8px;
+input, button, select, textarea {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px;
   font-size: 14px;
+  font-family: inherit;
 }
+
+input, select { min-height: 42px; }
+textarea { width: 100%; min-height: 100px; resize: vertical; }
 
 button {
-  background: #0052cc;
+  background: var(--primary);
   color: #fff;
+  border: none;
   cursor: pointer;
 }
+button.secondary { background: #475467; }
 
-.layout {
-  display: grid;
-  grid-template-columns: 240px 1fr 320px;
-  gap: 12px;
-}
+.controls #repoUrl { flex: 2; min-width: 320px; }
+.controls #githubToken { flex: 2; min-width: 320px; }
+.controls #pasteYaml { flex: 1; min-height: 84px; }
 
-.panel {
-  background: #fff;
+.file-upload {
+  border: 1px dashed var(--border);
   border-radius: 10px;
-  padding: 12px;
-  min-height: 420px;
+  padding: 10px;
+  background: #fafbff;
+  font-size: 14px;
+}
+.file-upload input { border: none; padding: 0; margin-left: 8px; }
+
+.workflow-bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.workflow-bar select { min-width: 280px; }
+
+.workspace {
+  display: grid;
+  grid-template-columns: 320px 1fr 320px;
+  gap: 14px;
 }
 
-.component-list {
+.panel h2 { margin-top: 0; }
+.panel h3 { margin: 14px 0 8px; font-size: 15px; }
+.hint { color: var(--muted); margin: 0 0 10px; font-size: 13px; }
+
+.component-list, .market-list {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  max-height: 240px;
+  overflow: auto;
 }
 
 .component-item {
-  background: #deebff;
-  border: 1px solid #4c9aff;
-  border-radius: 6px;
-  padding: 8px;
+  border: 1px solid #b8d4ff;
+  background: #eef4ff;
+  border-radius: 10px;
+  padding: 10px;
   cursor: grab;
 }
 
+.market-item {
+  border: 1px solid #dbe2f5;
+  border-radius: 10px;
+  padding: 10px;
+  background: #fcfdff;
+}
+.market-item .name { font-weight: 600; }
+.market-item .meta { color: var(--muted); font-size: 12px; margin: 4px 0; }
+.market-item button { margin-top: 6px; }
+
 .canvas {
-  border: 2px dashed #a5adba;
-  border-radius: 8px;
-  min-height: 360px;
+  min-height: 440px;
+  border: 2px dashed #bcc7e0;
+  border-radius: 12px;
   padding: 10px;
   display: flex;
   flex-direction: column;
@@ -76,29 +116,18 @@ button {
 }
 
 .canvas-node {
-  background: #e3fcef;
-  border: 1px solid #57d9a3;
-  border-radius: 6px;
-  padding: 8px;
+  border: 1px solid #b7e6cc;
+  background: #ecfdf3;
+  border-radius: 10px;
+  padding: 10px;
   cursor: pointer;
 }
+.canvas-node.active { outline: 2px solid #22c55e; }
 
-.canvas-node.active {
-  outline: 2px solid #36b37e;
-}
+#nodeConfig { display: flex; flex-direction: column; gap: 8px; color: var(--muted); }
+.yaml-editor textarea { min-height: 300px; }
+.pr-actions #status { color: var(--ok); font-weight: 600; }
 
-#nodeConfig {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.yaml-editor textarea {
-  width: 100%;
-  min-height: 240px;
-}
-
-.pr-actions textarea {
-  min-height: 80px;
-  flex: 1;
+@media (max-width: 1200px) {
+  .workspace { grid-template-columns: 1fr; }
 }
